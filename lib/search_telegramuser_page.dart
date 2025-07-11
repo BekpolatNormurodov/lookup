@@ -1,6 +1,4 @@
-import 'dart:convert';
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:lookup/library.dart';
 
 class SearchTelegramUserPage extends StatefulWidget {
   const SearchTelegramUserPage({super.key});
@@ -10,75 +8,55 @@ class SearchTelegramUserPage extends StatefulWidget {
 }
 
 class _SearchTelegramUserPageState extends State<SearchTelegramUserPage> {
-  final TextEditingController _controller = TextEditingController();
-  List<dynamic> _results = [];
-  bool _loading = false;
+  late TextEditingController controller;
+  late UserDataProvider provider;
 
-  Future<void> _searchUser() async {
-    final query = _controller.text.trim();
-    if (query.isEmpty) return;
+  List<UserDataModel> allData = [];
+  bool isLoading = false;
+  bool hasSearched = false;
+  String id = '';
 
-    setState(() {
-      _loading = true;
-      _results.clear();
-    });
+  @override
+  void initState() {
+    super.initState();
+    controller = TextEditingController();
+    provider = context.read<UserDataProvider>();
 
-    final url = Uri.parse('https://e1c2ac545495.ngrok-free.app/');
-
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+    provider.addListener(() {
+      if (provider.state == UserDataState.success) {
         setState(() {
-          _results = data;
+          allData = provider.data;
+          isLoading = false;
+          hasSearched = true;
         });
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Xatolik: ${response.statusCode}')),
-        );
+      } else if (provider.state == UserDataState.error) {
+        setState(() {
+          isLoading = false;
+          hasSearched = true;
+        });
       }
-    } catch (_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ulanishda xatolik yuz berdi')),
-      );
-    } finally {
-      setState(() {
-        _loading = false;
-      });
-    }
+    });
   }
 
-  Widget _buildUserCard(dynamic user) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 5),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.cyan.shade100, Colors.cyan.shade50],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.shade300,
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text("👤 Ism: ${user['first_name']} ${user['last_name'] ?? ''}",
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 6),
-          Text("📞 Telefon: ${user['phone']}"),
-          Text("🆔 Telegram ID: ${user['telegram_id']}"),
-          if (user['username'] != null)
-            Text("🔗 Username: @${user['username']}"),
-        ],
-      ),
-    );
+  void searchData() {
+    final idText = controller.text.trim();
+    if (idText.isEmpty) return;
+
+    final id = int.tryParse(idText);
+    if (id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Iltimos, to`g`ri ID kiriting')),
+      );
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+      hasSearched = true;
+      allData = [];
+    });
+
+    provider.getData(id);
   }
 
   @override
@@ -110,31 +88,42 @@ class _SearchTelegramUserPageState extends State<SearchTelegramUserPage> {
                 ],
               ),
               child: TextField(
-                controller: _controller,
+                onChanged: (value) {
+                  id = value;
+                  setState(() {});
+                  if (value.isEmpty) {
+                    setState(() {
+                      allData = [];
+                    });
+                  }
+                },
+                controller: controller,
                 keyboardType: TextInputType.number,
                 style: const TextStyle(fontSize: 18),
                 decoration: InputDecoration(
                   hintText: 'Telegram ID',
                   hintStyle: const TextStyle(color: Colors.grey),
                   contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20, vertical: 14),
+                    horizontal: 20,
+                    vertical: 14,
+                  ),
                   suffixIcon: IconButton(
-                    icon: Icon(Icons.search, color: Colors.cyan, size: 26),
-                    onPressed: (){
-                      _searchUser;
+                    onPressed: () {
+                      searchData();
+                      FocusScope.of(context).unfocus();
                     },
+                    icon: Icon(Icons.search, color: Colors.cyan, size: 26),
                   ),
                   border: InputBorder.none,
                 ),
               ),
             ),
             const SizedBox(height: 20),
-            if (_loading)
+            if (isLoading)
               const CircularProgressIndicator()
-            else if (_results.isEmpty)
-              Expanded(
-                child: Container(
-                  alignment: Alignment.center,
+            else if (hasSearched && allData.isEmpty)
+              const Expanded(
+                child: Center(
                   child: Text(
                     '🔍 Foydalanuvchi topilmadi',
                     style: TextStyle(fontSize: 16),
@@ -144,9 +133,9 @@ class _SearchTelegramUserPageState extends State<SearchTelegramUserPage> {
             else
               Expanded(
                 child: ListView.builder(
-                  itemCount: _results.length,
+                  itemCount: allData.length,
                   itemBuilder: (context, index) =>
-                      _buildUserCard(_results[index]),
+                      _buildUserCard(allData[index]),
                 ),
               ),
           ],
@@ -154,4 +143,37 @@ class _SearchTelegramUserPageState extends State<SearchTelegramUserPage> {
       ),
     );
   }
+}
+
+Widget _buildUserCard(UserDataModel user) {
+  return Container(
+    margin: EdgeInsets.symmetric(vertical: 12),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.cyan.shade100,
+      borderRadius: BorderRadius.circular(20),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.grey.shade300,
+          blurRadius: 8,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "👤 Ism: ${user.firstName} ${user.lastName ?? ''}",
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 8),
+        Text('📞 Telefon: ${user.phone}', style: const TextStyle(fontSize: 15),),
+        Text('🆔 Telegram ID: ${user.telegramId}', style: const TextStyle(fontSize: 15),),
+        if (user.username != null) Text('🔗 Username: @${user.username}', style: const TextStyle(fontSize: 15),),
+        if (user.createdAt != null)
+          Text('🕒 Saqlangan vaqt: ${user.createdAt}', style: const TextStyle(fontSize: 15),),
+      ],
+    ),
+  );
 }

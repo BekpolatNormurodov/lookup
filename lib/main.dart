@@ -1,8 +1,16 @@
 import 'library.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => UserDataProvider()),
+      ],
+      child: MyApp(),
+    ),
+  );
 }
+
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});

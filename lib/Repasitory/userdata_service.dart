@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 class UserDataService {
   Future<List<UserDataModel>> userDataService(id) async {
     try {
-      var url = Uri.parse('https://f9282873ed82.ngrok-free.app/search/?id=$id');
+      var url = Uri.parse('https://327b227a3bbb.ngrok-free.app/search/?id=$id');
       var response = await http.get(url);
       if (response.statusCode == 200) {
         List json = jsonDecode(response.body);
